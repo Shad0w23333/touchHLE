@@ -656,14 +656,18 @@ const INDICES_PER_9PATCH: usize = SQUARE_INDICES.len() * 3 * 3;
 fn make_9patch_coords(x_edges: [f32; 4], y_edges: [f32; 4]) -> [f32; FLOATS_PER_9PATCH] {
     let mut out_points = [0.0; FLOATS_PER_9PATCH];
     for (i, out_points_chunk) in out_points
-        .chunks_exact_mut(BASIC_SQUARE_POINTS.len())
+        .as_chunks_mut::<{ BASIC_SQUARE_POINTS.len() }>()
+        .0
+        .iter_mut()
         .enumerate()
     {
         let (x, y) = (i % 3, i / 3);
 
         for (dst_xy, src_xy) in out_points_chunk
-            .chunks_exact_mut(2)
-            .zip(BASIC_SQUARE_POINTS.chunks_exact(2))
+            .as_chunks_mut::<2>()
+            .0
+            .iter_mut()
+            .zip(BASIC_SQUARE_POINTS.as_chunks::<2>().0.iter())
         {
             let (x1, x2) = (x_edges[x], x_edges[x + 1]);
             let (y1, y2) = (y_edges[y], y_edges[y + 1]);
@@ -677,7 +681,9 @@ fn make_9patch_coords(x_edges: [f32; 4], y_edges: [f32; 4]) -> [f32; FLOATS_PER_
 fn make_9patch_indices() -> [u8; INDICES_PER_9PATCH] {
     let mut out_indices = [0; SQUARE_INDICES.len() * 3 * 3];
     for (i, out_indices_chunk) in out_indices
-        .chunks_exact_mut(SQUARE_INDICES.len())
+        .as_chunks_mut::<{ SQUARE_INDICES.len() }>()
+        .0
+        .iter_mut()
         .enumerate()
     {
         for (out_index, in_index) in out_indices_chunk

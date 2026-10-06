@@ -192,16 +192,16 @@ impl Options {
                 .split_once(',')
                 .ok_or_else(|| "--stabilize-virtual-cursor= requires two values".to_string())?;
             let smoothing_strength: f32 = smoothing_strength
-                .parse()
+                .parse::<f32>()
                 .ok()
-                .and_then(|s| if s < 0.0 { None } else { Some(s) })
+                .filter(|&s| s.is_nan() || s >= 0.0)
                 .ok_or_else(|| {
                     "Invalid smoothing strength for --stabilize-virtual-cursor=".to_string()
                 })?;
             let sticky_radius: f32 = sticky_radius
-                .parse()
+                .parse::<f32>()
                 .ok()
-                .and_then(|s| if s < 0.0 { None } else { Some(s) })
+                .filter(|&s| s.is_nan() || s >= 0.0)
                 .ok_or_else(|| {
                     "Invalid sticky radius for --stabilize-virtual-cursor=".to_string()
                 })?;
@@ -232,9 +232,9 @@ impl Options {
                 self.fps_limit = None;
             } else {
                 let limit: f64 = value
-                    .parse()
+                    .parse::<f64>()
                     .ok()
-                    .and_then(|v| if v <= 0.0 { None } else { Some(v) })
+                    .filter(|&v| v.is_nan() || v > 0.0)
                     .ok_or_else(|| "Invalid value for --fps-limit=".to_string())?;
                 self.fps_limit = Some(limit);
             }
@@ -331,4 +331,82 @@ fn parse_dump_options(options: &str) -> Result<DumpingOptions, String> {
         }
     }
     Ok(dumping_options)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Options;
+
+    fn assert_preserved_f32(actual: f32, input: &str) {
+        let expected = input.parse::<f32>().unwrap();
+        if expected.is_nan() {
+            assert!(actual.is_nan());
+        } else {
+            assert_eq!(actual.to_bits(), expected.to_bits());
+        }
+    }
+
+    #[test]
+    fn stabilization_preserves_nan_signed_zero_and_infinity() {
+        for value in ["NaN", "-0.0", "0.0", "inf", "1.25"] {
+            for (strength, radius) in [(value, "1.0"), ("1.0", value)] {
+                let mut options = Options::default();
+                let argument = format!("--stabilize-virtual-cursor={strength},{radius}");
+                assert_eq!(options.parse_argument(&argument), Ok(true));
+                let (parsed_strength, parsed_radius) = options.stabilize_virtual_cursor.unwrap();
+                assert_preserved_f32(parsed_strength, strength);
+                assert_preserved_f32(parsed_radius, radius);
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_stabilization_keeps_the_previous_option() {
+        for value in ["-1.0", "-inf", "invalid"] {
+            for (strength, radius) in [(value, "1.0"), ("1.0", value)] {
+                let mut options = Options {
+                    stabilize_virtual_cursor: Some((3.0, 4.0)),
+                    ..Options::default()
+                };
+                let argument = format!("--stabilize-virtual-cursor={strength},{radius}");
+                assert!(options.parse_argument(&argument).is_err());
+                let (strength, radius) = options.stabilize_virtual_cursor.unwrap();
+                assert_eq!(strength.to_bits(), 3.0_f32.to_bits());
+                assert_eq!(radius.to_bits(), 4.0_f32.to_bits());
+            }
+        }
+    }
+
+    #[test]
+    fn fps_limit_preserves_boundaries_and_off() {
+        for value in ["NaN", "inf", "1.0"] {
+            let mut options = Options::default();
+            assert_eq!(
+                options.parse_argument(&format!("--fps-limit={value}")),
+                Ok(true)
+            );
+            let actual = options.fps_limit.unwrap();
+            let expected = value.parse::<f64>().unwrap();
+            if expected.is_nan() {
+                assert!(actual.is_nan());
+            } else {
+                assert_eq!(actual.to_bits(), expected.to_bits());
+            }
+        }
+        for value in ["-0.0", "0.0", "-1.0", "-inf", "invalid"] {
+            let mut options = Options {
+                fps_limit: Some(48.0),
+                ..Options::default()
+            };
+            assert!(options
+                .parse_argument(&format!("--fps-limit={value}"))
+                .is_err());
+            assert_eq!(options.fps_limit.unwrap().to_bits(), 48.0_f64.to_bits());
+        }
+        let mut options = Options::default();
+        assert_eq!(options.parse_argument("--fps-limit=off"), Ok(true));
+        assert!(options.fps_limit.is_none());
+        assert!(options.parse_argument("--fps-limit=0.0").is_err());
+        assert!(options.fps_limit.is_none());
+    }
 }

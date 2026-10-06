@@ -12,7 +12,7 @@ jobs:
   build-osx:
     if: ${{ github.actor == 'Shad0w23333' && github.triggering_actor == 'Shad0w23333' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
 
-    runs-on: macos-latest
+    runs-on: macos-26-intel
 
     steps:
       # actions/checkout really doesn't work well with git-describe for some
@@ -31,8 +31,11 @@ jobs:
         run: dev-scripts/format.sh --check
       - name: Get Submodules
         run: git submodule update --init
-      - name: Install Boost
-        run: brew install boost
+      - name: Install Boost and compatible host compiler
+        run: |
+          brew install boost llvm@19
+          echo "CC=$(brew --prefix llvm@19)/bin/clang" >> "$GITHUB_ENV"
+          echo "CXX=$(brew --prefix llvm@19)/bin/clang++" >> "$GITHUB_ENV"
       - name: Try to get cached copy of cmake
         id: cache-cmake
         uses: actions/cache@v4
@@ -192,7 +195,7 @@ jobs:
   build-win:
     if: ${{ github.actor == 'Shad0w23333' && github.triggering_actor == 'Shad0w23333' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
 
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
     # actions/checkout really doesn't work well with git-describe for some
