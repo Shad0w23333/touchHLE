@@ -40,8 +40,18 @@ jobs:
         submodules: recursive
     - name: Offline syntax and manifest checks
       run: python3 /Users/Shared/macmini-ci/bin/validate-assets.py
+    - name: Prepare touchHLE integration dependencies
+      run: |
+        python3 /Users/Shared/macmini-ci/bin/prepare-touchhle-ci.py
+        mkdir -p ci-input-licenses/touchhle-sdk
+        cp tests/common-3.0.sdk/README.md ci-input-licenses/touchhle-sdk/
+        cp -R tests/common-3.0.sdk/licenses ci-input-licenses/touchhle-sdk/
     - name: Project checks and build
       run: python3 /Users/Shared/macmini-ci/bin/project-ci.py
+      env:
+        CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+        CC: /opt/homebrew/opt/llvm@19/bin/clang
+        CXX: /opt/homebrew/opt/llvm@19/bin/clang++
     - name: Collect CI outputs
       if: ${{ always() && env.MACMINI_FRESH == 'true' }}
       run: python3 /Users/Shared/macmini-ci/bin/collect-artifacts.py
